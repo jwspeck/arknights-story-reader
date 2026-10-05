@@ -8,8 +8,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join, resolve } from 'node:path';
 import { CastFinder, sceneStats } from '../src/cast';
 import { parseScript, type ParsedScript } from '../src/parser';
-import { ProfileBuilder } from './profiles';
-import type { Chapter, Episode, Index, Operator, OperatorHit } from '../src/types';
+import { plainText, ProfileBuilder, rosterEntry } from './profiles';
+import type { Chapter, Episode, Index, Npc, Operator, OperatorHit, RosterEntry } from '../src/types';
 
 const root = resolve(process.argv[2] ?? process.env.AK_GAMEDATA ?? 'data-src/en/gamedata');
 const out = resolve('public/data');
@@ -66,6 +66,7 @@ const operators = Object.entries(chars)
 const chapters: Chapter[] = [];
 const unknown = new Map<string, number>();
 let episodeCount = 0;
+const npcHits = new Map<string, OperatorHit[]>(); // named non-operators, by name
 
 // Parse everything first: telling character names from role labels needs the whole story.
 const scripts = new Map<string, ParsedScript>();
@@ -99,9 +100,14 @@ for (const { e, num } of mainline) {
       ...sceneStats(parsed.blocks),
       cast: castFinder.find(parsed.blocks),
     };
+    for (const c of ep.cast) {
+      if (c.operatorId) continue;
+      if (!npcHits.has(c.name)) npcHits.set(c.name, []);
+      npcHits.get(c.name)!.push({ id: ep.id, lines: c.lines, mentions: c.mentions, onScreen: false });
+    }
     writeFileSync(join(out, 'episodes', `${ep.id}.json`), JSON.stringify(ep));
     const synopsis = s.storyInfo ? readText(`story/[uc]${s.storyInfo}.txt`).trim() : '';
-    chapter.episodes.push({ id: ep.id, code: ep.code, name: ep.name, tag: ep.tag, synopsis });
+    chapter.episodes.push({ id: ep.id, code: ep.code, name: ep.name, tag: ep.tag, synopsis, lines: ep.lines, words: ep.words, cast: ep.cast });
     episodeCount++;
 
     // Who is in this episode: speaking lines, mentions in anyone's text, and portraits.
@@ -131,6 +137,23 @@ const opsOut: Operator[] = operators
   .sort((a, b) => a.name.localeCompare(b.name));
 writeFileSync(join(out, 'operators.json'), JSON.stringify(opsOut));
 
+// NPCs: every named character in the story who isn't an operator, plus intel files where the game has them.
+const handbook = readJson('excel/handbook_info_table.json');
+const npcFiles = new Map<string, Npc['files']>();
+for (const n of Object.values<{ npcId: string; name: string }>(handbook.npcDict)) {
+  const files = (handbook.handbookDict[n.npcId]?.storyTextAudio ?? []).flatMap(
+    (sec: { storyTitle: string; stories: { storyText: string }[] }) =>
+      sec.stories.map((st) => ({ title: sec.storyTitle, text: plainText(st.storyText ?? '') })),
+  );
+  if (files.length) npcFiles.set(n.name, files);
+}
+const slug = (name: string) =>
+  'npc-' + name.normalize('NFKD').replace(/[^\w\s-]/g, '').trim().toLowerCase().replace(/\s+/g, '-');
+const npcsOut: Npc[] = [...npcHits]
+  .map(([name, episodes]) => ({ id: slug(name), name, episodes, files: npcFiles.get(name) ?? [] }))
+  .sort((a, b) => a.name.localeCompare(b.name));
+writeFileSync(join(out, 'npcs.json'), JSON.stringify(npcsOut));
+
 // Operator files: stats, skills, modules, archives and voice lines, one JSON per operator.
 const profileTables = Object.fromEntries(
   [
@@ -141,17 +164,26 @@ const profileTables = Object.fromEntries(
 const profiles = new ProfileBuilder(profileTables);
 mkdirSync(join(out, 'profiles'), { recursive: true });
 let profileCount = 0;
+const roster: RosterEntry[] = [];
+const inStory = new Set(opsOut.map((o) => o.id));
 for (const op of operators) {
   try {
-    writeFileSync(join(out, 'profiles', `${op.id}.json`), JSON.stringify(profiles.build(op.id)));
+    const p = profiles.build(op.id);
+    writeFileSync(join(out, 'profiles', `${op.id}.json`), JSON.stringify(p));
+    roster.push(rosterEntry(p, inStory.has(op.id)));
     profileCount++;
   } catch (err) {
     console.warn(`profile ${op.id} (${op.name}) failed: ${(err as Error).message}`);
   }
 }
+roster.sort((a, b) => a.name.localeCompare(b.name));
+writeFileSync(join(out, 'roster.json'), JSON.stringify(roster));
+// Voice artist IMDb/Wikipedia links, if `npm run fetch-voice-links` has been run.
+const voiceLinks = resolve('data-src/voice-links.json');
+writeFileSync(join(out, 'voice-links.json'), existsSync(voiceLinks) ? readFileSync(voiceLinks, 'utf8') : '{}');
 
 console.log(
-  `Wrote ${chapters.length} chapters, ${episodeCount} episodes, ${opsOut.length} operators, ${profileCount} operator files (data ${dataVersion}) to ${out}`,
+  `Wrote ${chapters.length} chapters, ${episodeCount} episodes, ${opsOut.length} operators, ${npcsOut.length} NPCs, ${profileCount} operator files (data ${dataVersion}) to ${out}`,
 );
 if (unknown.size) {
   const list = [...unknown].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}×${v}`);

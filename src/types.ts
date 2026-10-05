@@ -41,6 +41,28 @@ export interface Profile {
   voiceLines: { title: string; text: string }[];
 }
 
+/** External pages for a voice artist (public/data/voice-links.json, keyed by name). */
+export interface VoiceLink {
+  imdb?: string; // nm1234567
+  wikipedia?: string; // full en.wikipedia.org URL
+}
+
+/** One row of public/data/roster.json: what the browse pages group and sort operators by. */
+export interface RosterEntry {
+  id: string;
+  name: string;
+  rarity: number;
+  className: string;
+  branch: string;
+  inStory: boolean; // has scenes in the main story
+  factions: { label: string; name: string }[]; // Nation / Allegiance / Squad / Also tied to
+  races: string[];
+  birthplace: string;
+  height: string; // as written in the file
+  heightCm: number | null;
+  voices: { lang: string; name: string }[];
+}
+
 export interface ProfileForm {
   id: string;
   className: string; // "Caster"
@@ -99,7 +121,10 @@ export interface EpisodeRef {
   code: string;
   name: string;
   tag: string;
-  synopsis: string;
+  synopsis: string; // the game's skip-story summary
+  lines: number;
+  words: number;
+  cast: CastMember[];
 }
 
 export interface Chapter {
@@ -123,7 +148,12 @@ export interface OperatorHit {
 }
 
 export interface Operator {
-  id: string; // char_xxx
+  id: string; // char_xxx, or npc-<slug> for story characters who aren't operators
   name: string;
   episodes: OperatorHit[];
+}
+
+/** A named story character who isn't a playable operator (public/data/npcs.json). */
+export interface Npc extends Operator {
+  files: { title: string; text: string }[]; // intel files, for the few NPCs the game has them for
 }

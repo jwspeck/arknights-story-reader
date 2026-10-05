@@ -18,6 +18,11 @@ npm run dev          # open http://localhost:5173
 To refresh after a game update: `npm run fetch-data && npm run build-data`.
 If you already have a dump elsewhere: `npm run build-data -- /path/to/en/gamedata`.
 
+Optional: `npm run fetch-voice-links && npm run build-data` looks up voice artists on Wikidata (about a
+minute, needs internet) so their pages link to IMDb and Wikipedia. Only a two-word name that matches
+exactly one voice actor gets a direct link; everyone else gets an IMDb name search. Results are cached
+in `data-src/voice-links.json`, so later builds work offline.
+
 Data comes from [ArknightsAssets/ArknightsGamedata](https://github.com/ArknightsAssets/ArknightsGamedata).
 The story text belongs to Hypergryph/Yostar; keep the dump and the built data local.
 
@@ -58,3 +63,10 @@ scenes, their lines are marked in the margin, and their name is highlighted wher
   uses as names (someone calls them that mid-sentence), so "Manfred" is listed but "Royal Guard" is not.
 
 `npm test` runs the parser tests.
+
+## Link style
+
+Every text link has a solid underline; colour can vary (muted labels stay grey). Nothing else is underlined:
+hover-only notes such as status terms and reading times get a help cursor (status terms are also coloured)
+instead. Button-shaped links (buttons, tabs, the header nav) go without, and boxed links (cards, tiles,
+chips, scene rows) underline their name. The rules live at the top of `src/style.css`.

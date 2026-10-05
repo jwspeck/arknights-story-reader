@@ -1,3 +1,5 @@
+import './style.css'; // through Vite so edits hot-reload
+import { FIELDS, renderBrowseHome, renderBrowseIndex, renderBrowseValue, renderHeights, type FieldKey } from './browse';
 import { parseContext } from './data';
 import { renderReader } from './reader';
 import { notFound, renderChapter, renderChapters, renderOperator, renderOperators, renderScene } from './views';
@@ -19,7 +21,8 @@ async function route() {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   }
   document.querySelectorAll<HTMLElement>('#site-header [data-tab]').forEach((a) => {
-    const tab = parts[0] === 'operators' || parts[0] === 'operator' ? 'operators' : 'chapters';
+    const tab =
+      ['operators', 'operator', 'npc'].includes(parts[0]) ? 'operators' : parts[0] === 'browse' ? 'browse' : 'chapters';
     a.classList.toggle('active', a.dataset.tab === tab);
   });
 
@@ -34,7 +37,16 @@ async function route() {
       case 'operators':
         return await renderOperators(app);
       case 'operator':
+      case 'npc':
         return await renderOperator(app, parts[1]);
+      case 'browse': {
+        const field = parts[1];
+        if (!field) return await renderBrowseHome(app);
+        if (field === 'height') return await renderHeights(app, params.get('op') ?? undefined);
+        if (!(field in FIELDS)) return notFound(app);
+        if (!parts[2]) return await renderBrowseIndex(app, field as FieldKey);
+        return await renderBrowseValue(app, field as FieldKey, decodeURIComponent(parts.slice(2).join('/')));
+      }
       case 'read': {
         const at = params.get('at');
         cleanup = await renderReader(app, parts[1], parseContext(params.get('ctx')), at === 'end' || at === 'start' ? at : 'resume');

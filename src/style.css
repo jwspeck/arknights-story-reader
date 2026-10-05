@@ -54,8 +54,18 @@ body {
   font-family: var(--sans);
   line-height: 1.5;
 }
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
+/* Links. Every text link has a solid underline; colour may vary. Nothing that isn't a link is underlined.
+   Button-shaped links (buttons, tabs, the header nav and logo) are recognisable by their shape instead,
+   and boxed links (cards, tiles, chips, scene rows) underline their name text. */
+a { color: var(--accent); text-decoration: underline 1px; text-underline-offset: 0.2em; }
+a:hover { text-decoration-thickness: 2px; }
+.btn, .brand, #site-header nav a, .card, .op-grid a, .scene-nav, .ep-row > a, a.badge { text-decoration: none; }
+.card .card-title, .op-grid a .op-name, .scene-nav .scene-nav-name, .ep-row > a .ep-name, a.badge .badge-text {
+  text-decoration: underline 1px;
+  text-underline-offset: 0.2em;
+}
+.card:hover .card-title, .op-grid a:hover .op-name, .scene-nav:hover .scene-nav-name, .ep-row > a:hover .ep-name,
+a.badge:hover .badge-text { text-decoration-thickness: 2px; }
 button { font: inherit; color: inherit; }
 
 /* Header */
@@ -100,7 +110,7 @@ button { font: inherit; color: inherit; }
   background: var(--page);
 }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-.btn:hover { text-decoration: none; filter: brightness(1.05); }
+.btn:hover { filter: brightness(1.05); }
 .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-bottom: 8px; }
 .check { color: var(--muted); font-size: 0.9rem; display: flex; gap: 6px; align-items: center; }
 
@@ -116,15 +126,15 @@ button { font: inherit; color: inherit; }
   color: var(--ink);
   height: 100%;
 }
-.card:hover { border-color: var(--accent); text-decoration: none; }
+.card:hover { border-color: var(--accent); }
 .card-kicker { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; }
 .card-title { font-family: var(--serif); font-size: 1.2rem; }
 .card-meta { color: var(--muted); font-size: 0.85rem; margin-top: auto; padding-top: 8px; }
 
 .ep-list { list-style: none; padding: 0; margin: 16px 0; border-top: 1px solid var(--faint); }
 .ep-row { border-bottom: 1px solid var(--faint); padding: 10px 4px; }
-.ep-row a { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; color: var(--ink); }
-.ep-row a:hover .ep-name { color: var(--accent); }
+.ep-row > a { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; color: var(--ink); }
+.ep-row > a:hover .ep-name { color: var(--accent); }
 .ep-code { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 3.5em; }
 .ep-name { font-family: var(--serif); font-size: 1.1rem; }
 .synopsis { margin: 4px 0 0 calc(3.5em + 12px); color: var(--muted); font-size: 0.9rem; }
@@ -141,18 +151,10 @@ button { font: inherit; color: inherit; }
 /* Scene summary */
 .muted { color: var(--muted); }
 .scene-stats { color: var(--muted); margin: -4px 0 16px; font-variant-numeric: tabular-nums; }
-.scene-stats .fineprint { display: block; font-size: 0.8rem; }
 .section-head { font-family: var(--serif); font-weight: 500; font-size: 1.3rem; margin: 32px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--faint); }
-.overview { font-family: var(--serif); font-size: 1.1rem; line-height: 1.6; margin: 0; }
-.cast-list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0 24px; }
-.cast-list li { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--faint); min-width: 0; }
-.cast-name { font-family: var(--serif); font-size: 1.05rem; overflow-wrap: anywhere; }
-.cast-name a { color: var(--ink); }
-.cast-name a:hover { color: var(--accent); }
 .scene-navs { display: flex; justify-content: space-between; gap: 16px; margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--faint); }
 .scene-nav { display: flex; flex-direction: column; gap: 2px; max-width: 48%; color: var(--ink); }
 .scene-nav.next { text-align: right; margin-left: auto; }
-.scene-nav:hover { text-decoration: none; }
 .scene-nav:hover .scene-nav-name { color: var(--accent); }
 .scene-nav-name { font-family: var(--serif); }
 
@@ -175,7 +177,7 @@ button { font: inherit; color: inherit; }
   background: var(--page);
   color: var(--ink);
 }
-.op-grid a:hover { border-color: var(--accent); text-decoration: none; }
+.op-grid a:hover { border-color: var(--accent); }
 .op-count { color: var(--muted); font-variant-numeric: tabular-nums; }
 
 /* Reader */
@@ -346,7 +348,8 @@ body.immersive .exit-immersive:hover { opacity: 1; }
 .rt-vup, .rt-kw, .rt-talpu { color: var(--accent); }
 .rt-vdown { color: var(--after); }
 .rt-rem { color: var(--muted); }
-.rt-term { text-decoration: underline dotted; cursor: help; }
+/* Status terms explain themselves on hover; coloured, never underlined, so they don't read as links. */
+.rt-term { color: var(--interlude); cursor: help; }
 .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
 .prof-card { background: var(--page); border: 1px solid var(--faint); border-radius: 8px; padding: 12px 14px; min-width: 0; }
 .prof-card h4 { font-family: var(--serif); font-size: 1.1rem; font-weight: 500; margin: 2px 0 6px; }
@@ -363,3 +366,39 @@ body.immersive .exit-immersive:hover { opacity: 1; }
 .voice { margin: 8px 0; }
 .voice dt { color: var(--muted); font-size: 0.8rem; margin-top: 10px; }
 .voice dd { margin: 2px 0 0; font-family: var(--serif); }
+
+/* Browse */
+.facts dt a { color: var(--muted); }
+.facts dt a:hover { color: var(--accent); }
+.summary-stats { margin: 8px 0 0; max-width: 640px; }
+a.badge { color: var(--ink); }
+a.badge:hover { border-color: var(--accent); }
+.stars { color: var(--after); letter-spacing: -1px; white-space: nowrap; }
+.table-wrap { overflow-x: auto; margin: 8px 0; }
+.roster { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+.roster th, .roster td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--faint); white-space: nowrap; }
+.roster th.num, .roster td.num { text-align: right; }
+.roster th button { background: none; border: 0; padding: 0; cursor: pointer; color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.roster th[aria-sort='ascending'] button, .roster th[aria-sort='descending'] button { color: var(--ink); }
+.roster tbody tr:hover { background: var(--page); }
+.roster tr.hl { background: var(--mark); }
+
+/* Character list */
+.op-grid li.no-scenes a { opacity: 0.6; }
+.section-head .count { font-family: var(--sans); font-size: 0.9rem; }
+
+/* Scene rows on a chapter page */
+.ep-len { margin-left: auto; color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.scene-detail { margin-left: calc(3.5em + 12px); }
+.no-code .scene-detail { margin-left: 0; }
+.scene-stats .hint, .ep-len { cursor: help; }
+.scene-detail .synopsis { margin-left: 0; }
+.ep-cast { margin: 6px 0 0; font-size: 0.85rem; color: var(--muted); line-height: 1.6; }
+.ep-cast > span { display: inline; }
+.ep-cast .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; margin-right: 4px; }
+.ep-cast .speaks a { color: var(--ink); }
+.ep-cast .named a { color: var(--muted); }
+.ep-cast a:hover { color: var(--accent); }
+.scene-row.focus { background: var(--page); box-shadow: inset 3px 0 0 var(--accent); }
+@media (max-width: 560px) { .scene-detail { margin-left: 0; } .ep-len { margin-left: 0; width: 100%; } }
+.external-links { display: flex; flex-wrap: wrap; gap: 4px 20px; margin: -4px 0 8px; }

@@ -2,6 +2,7 @@
 // skills, modules, base skills, archive files and voice lines.
 
 import type { Profile, ProfileForm, ProfileModule, ProfileSkill, Stats } from './types';
+import { browseHref } from './browse';
 import { esc } from './views';
 
 const STATS: { key: keyof Stats; label: string; unit?: string }[] = [
@@ -102,13 +103,26 @@ function formBody(f: ProfileForm) {
 
 export function renderProfile(p: Profile): string {
   const main = p.forms[0];
-  const facts = [
-    ...p.affiliation.map((a) => [a.label, a.name]),
-    ...p.info.map((i) => [i.key, i.value]),
-    p.illustrators.length ? ['Illustrator', p.illustrators.join(', ')] : null,
-    ...p.voices.map((v) => [`Voice (${v.lang})`, v.names.join(', ')]),
-    p.obtain ? ['Obtained from', p.obtain] : null,
-  ].filter((x): x is string[] => !!x);
+  // [label, label link, value HTML]. Linked labels open the index of that field, values its summary page.
+  const link = (href: string, s: string) => `<a href="${href}">${esc(s)}</a>`;
+  const infoFact = (key: string, value: string): [string, string | null, string] => {
+    if (key === 'Race')
+      return [key, browseHref('race'), value.split('/').map((r) => link(browseHref('race', r.trim()), r.trim())).join(' / ')];
+    if (key === 'Place of Birth') return [key, browseHref('birthplace'), link(browseHref('birthplace', value), value)];
+    if (key === 'Height') return [key, browseHref('height'), link(`${browseHref('height')}?op=${p.id}`, value)];
+    return [key, null, esc(value)];
+  };
+  const facts: [string, string | null, string][] = [
+    ...p.affiliation.map((a): [string, string | null, string] => [a.label, browseHref('faction'), link(browseHref('faction', a.name), a.name)]),
+    ...p.info.map((i) => infoFact(i.key, i.value)),
+    ...(p.illustrators.length ? [['Illustrator', null, esc(p.illustrators.join(', '))] as [string, null, string]] : []),
+    ...p.voices.map((v): [string, string | null, string] => [
+      `Voice (${v.lang})`,
+      browseHref('voice'),
+      v.names.map((n) => link(browseHref('voice', n), n)).join(', '),
+    ]),
+    ...(p.obtain ? [['Obtained from', null, esc(p.obtain)] as [string, null, string]] : []),
+  ];
 
   const forms = p.forms.length > 1;
   const files = p.files
@@ -131,7 +145,9 @@ export function renderProfile(p: Profile): string {
     </nav>
 
     <h2 class="section-head" id="prof-about">About</h2>
-    <dl class="facts">${facts.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
+    <dl class="facts">${facts
+      .map(([k, href, v]) => `<div><dt>${href ? `<a href="${href}">${esc(k)}</a>` : esc(k)}</dt><dd>${v}</dd></div>`)
+      .join('')}</dl>
 
     <h2 class="section-head" id="prof-build">Stats &amp; skills</h2>
     ${
