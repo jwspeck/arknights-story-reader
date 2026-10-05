@@ -1,6 +1,6 @@
 import { parseContext } from './data';
 import { renderReader } from './reader';
-import { notFound, renderChapter, renderChapters, renderOperator, renderOperators } from './views';
+import { notFound, renderChapter, renderChapters, renderOperator, renderOperators, renderScene } from './views';
 
 const app = document.getElementById('app')!;
 let cleanup: (() => void) | void;
@@ -29,6 +29,8 @@ async function route() {
         return await renderChapters(app);
       case 'chapter':
         return await renderChapter(app, parts[1]);
+      case 'scene':
+        return await renderScene(app, parts[1]);
       case 'operators':
         return await renderOperators(app);
       case 'operator':

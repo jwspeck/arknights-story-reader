@@ -6,7 +6,9 @@
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { parseScript } from '../src/parser';
+import { CastFinder, sceneStats } from '../src/cast';
+import { parseScript, type ParsedScript } from '../src/parser';
+import { ProfileBuilder } from './profiles';
 import type { Chapter, Episode, Index, Operator, OperatorHit } from '../src/types';
 
 const root = resolve(process.argv[2] ?? process.env.AK_GAMEDATA ?? 'data-src/en/gamedata');
@@ -65,15 +67,26 @@ const chapters: Chapter[] = [];
 const unknown = new Map<string, number>();
 let episodeCount = 0;
 
+// Parse everything first: telling character names from role labels needs the whole story.
+const scripts = new Map<string, ParsedScript>();
+for (const { e } of mainline) {
+  for (const s of e.infoUnlockDatas) {
+    const src = readText(`story/${s.storyTxt}.txt`);
+    if (src) scripts.set(s.storyId, parseScript(src));
+    else console.warn(`missing script: ${s.storyTxt}`);
+  }
+}
+const castFinder = new CastFinder(
+  [...scripts.values()].map((p) => p.blocks),
+  operators,
+  MENTION_STOPLIST,
+);
+
 for (const { e, num } of mainline) {
   const chapter: Chapter = { id: e.id, num, name: e.name, episodes: [] };
   for (const s of [...e.infoUnlockDatas].sort((a, b) => a.storySort - b.storySort)) {
-    const src = readText(`story/${s.storyTxt}.txt`);
-    if (!src) {
-      console.warn(`missing script: ${s.storyTxt}`);
-      continue;
-    }
-    const parsed = parseScript(src);
+    const parsed = scripts.get(s.storyId);
+    if (!parsed) continue;
     for (const [k, v] of parsed.unknown) unknown.set(k, (unknown.get(k) ?? 0) + v);
 
     const ep: Episode = {
@@ -83,6 +96,8 @@ for (const { e, num } of mainline) {
       tag: s.avgTag ?? '',
       chapterId: e.id,
       blocks: parsed.blocks,
+      ...sceneStats(parsed.blocks),
+      cast: castFinder.find(parsed.blocks),
     };
     writeFileSync(join(out, 'episodes', `${ep.id}.json`), JSON.stringify(ep));
     const synopsis = s.storyInfo ? readText(`story/[uc]${s.storyInfo}.txt`).trim() : '';
@@ -116,8 +131,27 @@ const opsOut: Operator[] = operators
   .sort((a, b) => a.name.localeCompare(b.name));
 writeFileSync(join(out, 'operators.json'), JSON.stringify(opsOut));
 
+// Operator files: stats, skills, modules, archives and voice lines, one JSON per operator.
+const profileTables = Object.fromEntries(
+  [
+    'character_table', 'char_patch_table', 'skill_table', 'uniequip_table', 'battle_equip_table', 'range_table',
+    'handbook_info_table', 'handbook_team_table', 'charword_table', 'skin_table', 'building_data', 'gamedata_const',
+  ].map((name) => [name, name === 'character_table' ? chars : readJson(`excel/${name}.json`)]),
+);
+const profiles = new ProfileBuilder(profileTables);
+mkdirSync(join(out, 'profiles'), { recursive: true });
+let profileCount = 0;
+for (const op of operators) {
+  try {
+    writeFileSync(join(out, 'profiles', `${op.id}.json`), JSON.stringify(profiles.build(op.id)));
+    profileCount++;
+  } catch (err) {
+    console.warn(`profile ${op.id} (${op.name}) failed: ${(err as Error).message}`);
+  }
+}
+
 console.log(
-  `Wrote ${chapters.length} chapters, ${episodeCount} episodes, ${opsOut.length} operators (data ${dataVersion}) to ${out}`,
+  `Wrote ${chapters.length} chapters, ${episodeCount} episodes, ${opsOut.length} operators, ${profileCount} operator files (data ${dataVersion}) to ${out}`,
 );
 if (unknown.size) {
   const list = [...unknown].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}×${v}`);

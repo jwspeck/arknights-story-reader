@@ -22,6 +22,13 @@ const store = {
 };
 
 const FONT_SIZES = [15, 16, 17, 18, 19, 20, 22, 24, 26, 28];
+const DEFAULT_FONT_SIZE = 16;
+
+// One wheel gesture (and a trackpad's momentum after it) flips one page. Kept outside the reader
+// so momentum that carries into the next scene doesn't flip that one too.
+const WHEEL_THRESHOLD = 40;
+const WHEEL_QUIET_MS = 250;
+let wheelLockUntil = 0;
 
 function renderBlocks(blocks: Block[], opName: string | null): string {
   const mention = opName
@@ -95,8 +102,8 @@ export async function renderReader(
   const prevId = pos > 0 ? seq[pos - 1] : null;
   const nextId = pos >= 0 && pos < seq.length - 1 ? seq[pos + 1] : null;
   const cp = contextParam(ctx);
-  const backHref = op ? `#/operator/${op.id}` : `#/chapter/${info.chapter.id}`;
-  const backLabel = op ? op.name : info.chapter.name;
+  const backHref = op ? `#/operator/${op.id}` : `#/scene/${id}`;
+  const backLabel = op ? op.name : `${ep.code} summary`;
   const nextInfo = nextId ? eps.get(nextId)! : null;
 
   app.innerHTML = `<section class="reader">
@@ -123,7 +130,16 @@ export async function renderReader(
         ${renderBlocks(ep.blocks, op?.name ?? null)}
         <footer class="ep-end">
           <p>End of ${esc(ep.code)} ${esc(ep.name)}${ep.tag ? ` (${esc(ep.tag)})` : ''}</p>
-          ${nextInfo ? `<a class="btn" href="#/read/${nextId}${cp}">Next: ${esc(nextInfo.code)} ${esc(nextInfo.name)} →</a>` : '<p>That is the last scene here.</p>'}
+          ${
+            !nextInfo
+              ? '<p>That is the last scene here.</p>'
+              : op
+                ? `<a class="btn" href="#/read/${nextId}${cp}">Next: ${esc(nextInfo.code)} ${esc(nextInfo.name)} →</a>`
+                : `<div class="ep-end-actions">
+                    <a class="btn primary" href="#/scene/${nextId}">Next: ${esc(nextInfo.code)} ${esc(nextInfo.name)} →</a>
+                    <a class="btn" href="#/read/${nextId}?at=start">Skip the summary and start reading</a>
+                  </div>`
+          }
         </footer>
       </div>
     </div>
@@ -142,7 +158,7 @@ export async function renderReader(
   const fill = reader.querySelector<HTMLElement>('.progress-fill')!;
   const counter = reader.querySelector<HTMLElement>('.page-count')!;
 
-  let fs = Number(store.get('fontSize')) || 19;
+  let fs = Number(store.get('fontSize')) || DEFAULT_FONT_SIZE;
   let view = 0;
   let views = 1;
   let stride = 0;
@@ -208,7 +224,8 @@ export async function renderReader(
       return;
     }
     if (target >= views) {
-      if (nextId) location.hash = `#/read/${nextId}${cp}${cp ? '&' : '?'}at=start`;
+      // In story order the next scene opens on its summary; following an operator goes straight on.
+      if (nextId) location.hash = op ? `#/read/${nextId}${cp}&at=start` : `#/scene/${nextId}`;
       return;
     }
     view = target;
@@ -248,7 +265,7 @@ export async function renderReader(
     if (act === 'immersive') return toggleImmersive();
     if (act === 'smaller' || act === 'larger') {
       const i = FONT_SIZES.indexOf(fs);
-      fs = FONT_SIZES[Math.min(FONT_SIZES.length - 1, Math.max(0, (i < 0 ? 4 : i) + (act === 'larger' ? 1 : -1)))];
+      fs = FONT_SIZES[Math.min(FONT_SIZES.length - 1, Math.max(0, (i < 0 ? FONT_SIZES.indexOf(DEFAULT_FONT_SIZE) : i) + (act === 'larger' ? 1 : -1)))];
       store.set('fontSize', String(fs));
       return relayout();
     }
@@ -269,6 +286,26 @@ export async function renderReader(
     if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
   };
 
+  // Wheel down/right is the next page, up/left the previous one.
+  let wheelSum = 0;
+  const onWheel = (e: WheelEvent) => {
+    if (e.ctrlKey) return; // pinch / browser zoom
+    e.preventDefault();
+    const now = performance.now();
+    if (now < wheelLockUntil) {
+      wheelLockUntil = now + WHEEL_QUIET_MS; // still the same gesture
+      return;
+    }
+    const scale = e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 800 : 1; // lines / pages to pixels
+    const d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+    wheelSum += d * scale;
+    if (Math.abs(wheelSum) < WHEEL_THRESHOLD) return;
+    const dir = wheelSum > 0 ? 1 : -1;
+    wheelSum = 0;
+    wheelLockUntil = now + WHEEL_QUIET_MS;
+    go(dir);
+  };
+
   let resizeTimer = 0;
   const onResize = () => {
     clearTimeout(resizeTimer);
@@ -285,6 +322,7 @@ export async function renderReader(
   reader.addEventListener('click', onClick);
   book.addEventListener('touchstart', onTouchStart, { passive: true });
   book.addEventListener('touchend', onTouchEnd);
+  reader.addEventListener('wheel', onWheel, { passive: false });
   window.addEventListener('resize', onResize);
   document.addEventListener('fullscreenchange', onFullscreen);
   document.fonts?.ready.then(relayout);

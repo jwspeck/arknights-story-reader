@@ -1,6 +1,8 @@
 // Browsing pages: chapter list, chapter detail, operator list, operator detail.
 
-import { chapterLabel, episodeMap, getIndex, getOperators } from './data';
+import { WORDS_PER_MINUTE } from './cast';
+import { chapterLabel, episodeMap, getEpisode, getIndex, getOperators, getProfile, sequence } from './data';
+import { bindProfile, renderProfile } from './profile-view';
 import type { EpisodeRef } from './types';
 
 export const esc = (s: string) =>
@@ -50,7 +52,65 @@ export async function renderChapter(app: HTMLElement, id: string) {
     <p class="kicker">${chapterLabel(ch)}</p>
     <h1>${esc(ch.name)}</h1>
     <a class="btn primary" href="#/read/${ch.episodes[0].id}">Start reading</a>
-    <ol class="ep-list">${ch.episodes.map((e) => episodeRow(e, `#/read/${e.id}`)).join('')}</ol>
+    <ol class="ep-list">${ch.episodes.map((e) => episodeRow(e, `#/scene/${e.id}`)).join('')}</ol>
+  </section>`;
+}
+
+function readingTime(words: number): string {
+  const min = Math.max(1, Math.round(words / WORDS_PER_MINUTE));
+  return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${min % 60} min`;
+}
+
+/** A scene's summary page: overview, cast, length, and links to its neighbours. */
+export async function renderScene(app: HTMLElement, id: string) {
+  const [eps, seq] = await Promise.all([episodeMap(), sequence({ kind: 'story' })]);
+  const info = eps.get(id);
+  if (!info) return notFound(app);
+  const ep = await getEpisode(id);
+  const pos = seq.indexOf(id);
+  const prev = pos > 0 ? eps.get(seq[pos - 1])! : null;
+  const next = pos < seq.length - 1 ? eps.get(seq[pos + 1])! : null;
+  const n = (x: number) => x.toLocaleString();
+
+  const neighbour = (e: EpisodeRef | null, label: string, cls: string) =>
+    e
+      ? `<a class="scene-nav ${cls}" href="#/scene/${e.id}">
+          <span class="kicker">${label}</span>
+          <span class="scene-nav-name">${esc(e.code)} ${esc(e.name)}${e.tag ? ` · ${esc(e.tag)}` : ''}</span>
+        </a>`
+      : `<span class="scene-nav ${cls}"></span>`;
+
+  const castRow = (c: (typeof ep.cast)[number]) => {
+    const name = c.operatorId ? `<a href="#/operator/${c.operatorId}">${esc(c.name)}</a>` : esc(c.name);
+    const badges = [
+      c.lines ? `<span class="badge speak">${c.lines} line${c.lines > 1 ? 's' : ''}</span>` : '',
+      c.mentions ? `<span class="badge">named ${c.mentions}×</span>` : '',
+    ].join('');
+    return `<li><span class="cast-name">${name}</span><span class="badges">${badges}</span></li>`;
+  };
+
+  app.innerHTML = `<section class="page scene-page">
+    <a class="back" href="#/chapter/${info.chapter.id}">← ${esc(info.chapter.name)}</a>
+    <p class="kicker">${chapterLabel(info.chapter)} · ${esc(ep.code)}${ep.tag ? ` · ${esc(ep.tag)}` : ''}</p>
+    <h1>${esc(ep.name)}</h1>
+    <p class="scene-stats">${n(ep.lines)} lines · ${n(ep.words)} words · about ${readingTime(ep.words)} to read
+      <span class="fineprint">(at ${WORDS_PER_MINUTE} words per minute, an average adult reading speed)</span></p>
+    <a class="btn primary" href="#/read/${id}">Start reading</a>
+
+    <h2 class="section-head">Scene Overview</h2>
+    <p class="overview">${info.synopsis ? esc(info.synopsis) : '<span class="muted">The game has no summary for this scene.</span>'}</p>
+
+    <h2 class="section-head">Characters in this scene</h2>
+    ${
+      ep.cast.length
+        ? `<ul class="cast-list">${ep.cast.map(castRow).join('')}</ul>`
+        : '<p class="muted">No named characters.</p>'
+    }
+
+    <nav class="scene-navs">
+      ${neighbour(prev, '← Previous Chapter', 'prev')}
+      ${neighbour(next, 'Next Chapter →', 'next')}
+    </nav>
   </section>`;
 }
 
@@ -114,9 +174,12 @@ export async function renderOperator(app: HTMLElement, id: string) {
       .join('');
   };
 
+  const profile = await getProfile(op.id);
   app.innerHTML = `<section class="page">
     <a class="back" href="#/operators">← Operators</a>
     <h1>${esc(op.name)}</h1>
+    ${profile ? renderProfile(profile) : ''}
+    <h2 class="section-head" id="scenes">Scenes</h2>
     <p class="lede">${op.episodes.length} scenes in the main story, speaking in ${speaking}.</p>
     <div class="row">
       <a class="btn primary" href="#/read/${op.episodes[0].id}${ctx}">Read all in order</a>
@@ -124,6 +187,7 @@ export async function renderOperator(app: HTMLElement, id: string) {
     </div>
     <div id="op-eps">${draw(false)}</div>
   </section>`;
+  bindProfile(app);
   app.querySelector<HTMLInputElement>('#only-speaking')!.addEventListener('change', (e) => {
     app.querySelector('#op-eps')!.innerHTML = draw((e.target as HTMLInputElement).checked);
   });

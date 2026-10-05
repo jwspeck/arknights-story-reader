@@ -1,4 +1,4 @@
-import type { Chapter, Episode, EpisodeRef, Index, Operator } from './types';
+import type { Chapter, Episode, EpisodeRef, Index, Operator, Profile } from './types';
 
 const cache = new Map<string, Promise<unknown>>();
 function load<T>(path: string): Promise<T> {
@@ -17,6 +17,8 @@ function load<T>(path: string): Promise<T> {
 export const getIndex = () => load<Index>('index.json');
 export const getOperators = () => load<Operator[]>('operators.json');
 export const getEpisode = (id: string) => load<Episode>(`episodes/${id}.json`);
+/** The operator's file, or null when there isn't one (rebuild data to add them). */
+export const getProfile = (id: string) => load<Profile>(`profiles/${id}.json`).catch(() => null);
 
 export interface EpisodeInfo extends EpisodeRef {
   chapter: Chapter;
