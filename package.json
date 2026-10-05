@@ -6,6 +6,7 @@
   "scripts": {
     "fetch-data": "tsx scripts/fetch-data.ts",
     "build-data": "tsx scripts/build-data.ts",
+    "fetch-voice-links": "tsx scripts/fetch-voice-links.ts",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",

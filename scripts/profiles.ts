@@ -2,7 +2,7 @@
 // Stats and descriptions are for the fully built operator: max promotion and level, full potential,
 // max trust, skills at their top rank (Mastery 3), and modules at stage 3.
 
-import type { Profile, ProfileForm, ProfileModule, ProfileSkill, Stats } from '../src/types';
+import type { Profile, ProfileForm, ProfileModule, ProfileSkill, RosterEntry, Stats } from '../src/types';
 
 type Json = any; // the game tables are large and loosely shaped
 type Blackboard = { key: string; value: number; valueStr?: string | null }[] | Record<string, never>;
@@ -79,6 +79,38 @@ export class RichText {
 
 export function plainText(s: string): string {
   return s.replace(/<[@$][^<>]+>|<\/>/g, '').replace(/\r/g, '').trim();
+}
+
+/** "142cm" -> 142, "1.63m" -> 163; anything else (Undisclosed, sitting/stretching notes) -> null. */
+export function heightCm(s: string): number | null {
+  const cm = /^(\d+(?:\.\d+)?)\s*cm$/i.exec(s.trim());
+  if (cm) return Number(cm[1]);
+  const m = /^(\d(?:\.\d+)?)\s*m$/i.exec(s.trim());
+  return m ? Math.round(Number(m[1]) * 100) : null;
+}
+
+/** Glitched or redacted file text (one operator's file is deliberately corrupted). */
+const garbled = (s: string) => !s || /[■?#@\\]/.test(s);
+
+export function rosterEntry(p: Profile, inStory: boolean): RosterEntry {
+  const info = (key: string) => p.info.find((i) => i.key === key)?.value ?? '';
+  const race = info('Race');
+  const height = info('Height');
+  return {
+    id: p.id,
+    name: p.name,
+    rarity: p.rarity,
+    className: p.forms[0].className,
+    branch: p.forms[0].branch,
+    inStory,
+    factions: p.affiliation,
+    // "Cautus/Chimera" is two races; "Tall-man (Self-declared)" stays whole.
+    races: garbled(race) ? [] : race.split('/').map((r) => r.trim()).filter(Boolean),
+    birthplace: garbled(info('Place of Birth')) ? '' : info('Place of Birth'),
+    height: garbled(height) ? '' : height,
+    heightCm: garbled(height) ? null : heightCm(height),
+    voices: p.voices.flatMap((v) => v.names.map((name) => ({ lang: v.lang, name }))),
+  };
 }
 
 export class ProfileBuilder {

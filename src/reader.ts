@@ -1,6 +1,6 @@
 // The book-style reader: one scene laid out in CSS columns and flipped a page (or spread) at a time.
 
-import { chapterLabel, contextParam, episodeMap, getEpisode, getOperators, sequence, type Context } from './data';
+import { chapterLabel, characterHref, contextParam, episodeMap, findCharacter, getEpisode, sequence, type Context } from './data';
 import type { Block } from './types';
 import { esc } from './views';
 
@@ -95,15 +95,19 @@ export async function renderReader(
   ctx: Context,
   startAt: 'resume' | 'start' | 'end',
 ): Promise<() => void> {
-  const [ep, eps, seq, ops] = await Promise.all([getEpisode(id), episodeMap(), sequence(ctx), getOperators()]);
+  const [ep, eps, seq, op] = await Promise.all([
+    getEpisode(id),
+    episodeMap(),
+    sequence(ctx),
+    ctx.kind === 'op' ? findCharacter(ctx.opId) : undefined,
+  ]);
   const info = eps.get(id)!;
-  const op = ctx.kind === 'op' ? ops.find((o) => o.id === ctx.opId) : undefined;
   const pos = seq.indexOf(id);
   const prevId = pos > 0 ? seq[pos - 1] : null;
   const nextId = pos >= 0 && pos < seq.length - 1 ? seq[pos + 1] : null;
   const cp = contextParam(ctx);
-  const backHref = op ? `#/operator/${op.id}` : `#/scene/${id}`;
-  const backLabel = op ? op.name : `${ep.code} summary`;
+  const backHref = op ? characterHref(op.id) : `#/scene/${id}`;
+  const backLabel = op ? op.name : info.chapter.name;
   const nextInfo = nextId ? eps.get(nextId)! : null;
 
   app.innerHTML = `<section class="reader">
@@ -224,7 +228,7 @@ export async function renderReader(
       return;
     }
     if (target >= views) {
-      // In story order the next scene opens on its summary; following an operator goes straight on.
+      // In story order the next scene opens on its chapter page, scrolled to it; following an operator goes straight on.
       if (nextId) location.hash = op ? `#/read/${nextId}${cp}&at=start` : `#/scene/${nextId}`;
       return;
     }
