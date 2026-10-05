@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "fetch-data": "sh scripts/fetch-data.sh",
+    "fetch-data": "tsx scripts/fetch-data.ts",
     "build-data": "tsx scripts/build-data.ts",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
